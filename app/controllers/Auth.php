@@ -18,22 +18,64 @@ class Auth extends Controller {
         $this->call->view('auth/login');
     }  
 
-    public function login() {
-        if($this->form_validation->submitted()) {
+    // public function login() {
+    //     if($this->form_validation->submitted()) {
+    //         $email = $this->io->post('email');
+	// 		$password = $this->io->post('password');
+    //         $data = $this->lauth->login($email, $password);
+    //         if(empty($data)) {
+	// 			$this->session->set_flashdata(['is_invalid' => 'is-invalid']);
+    //             $this->session->set_flashdata(['err_message' => 'These credentials do not match our records.']);
+	// 		} else {
+	// 			$this->lauth->set_logged_in($data);
+	// 		}
+    //         redirect('auth/login');
+    //     } else {
+    //         $this->call->view('auth/login');
+    //     }
+        
+    // }
+
+    public function login()
+    {
+        if ($this->form_validation->submitted()) {
             $email = $this->io->post('email');
-			$password = $this->io->post('password');
+            $password = $this->io->post('password');
+
             $data = $this->lauth->login($email, $password);
-            if(empty($data)) {
-				$this->session->set_flashdata(['is_invalid' => 'is-invalid']);
+
+            if (empty($data)) {
+                $this->session->set_flashdata(['is_invalid' => 'is-invalid']);
                 $this->session->set_flashdata(['err_message' => 'These credentials do not match our records.']);
-			} else {
-				$this->lauth->set_logged_in($data);
-			}
-            redirect('auth/login');
+                redirect('auth/login');
+            } else {
+                $userId = $data;  // Assuming $data is the user ID
+
+                // Fetch user details from the database
+                $user = $this->db->table('users')->where(['id' => $userId])->get();
+
+                if ($user) {
+                    $this->session->set_userdata('userId', $userId);
+                    $this->lauth->set_logged_in($data); // Log in with the full user data
+
+                    switch ($user['role']) {
+                        case 'employer':
+                            redirect('employer/home');
+                            break;
+                        case 'employee':
+                            redirect('employee/home');
+                            break;
+                        case 'admin':
+                            redirect('admin/home');
+                            break;
+                        default:
+                            redirect('home');
+                    }
+                }
+            }
         } else {
             $this->call->view('auth/login');
         }
-        
     }
 
     public function register() {
@@ -42,6 +84,7 @@ class Auth extends Controller {
             $username = $this->io->post('username');
             $email = $this->io->post('email');
 			$email_token = bin2hex(random_bytes(50));
+            $role = $this->io->post('role');
             $this->form_validation
                 ->name('username')
                     ->required()
@@ -58,12 +101,14 @@ class Auth extends Controller {
                     ->matches('password', 'Passwords did not match.')
                 ->name('email')
                     ->required()
-                    ->is_unique('users', 'email', $email, 'Email was already taken.');
+                    ->is_unique('users', 'email', $email, 'Email was already taken.')
+                ->name('role')
+                    ->required();
                 if($this->form_validation->run()) {
-                    if($this->lauth->register($username, $email, $this->io->post('password'), $email_token)) {
-                        $data = $this->lauth->login($email, $this->io->post('password'));
-                        $this->lauth->set_logged_in($data);
-                        redirect('home');
+                    if($this->lauth->register($username, $email, $this->io->post('password'), $email_token, $role)) {
+                        // $data = $this->lauth->login($email, $this->io->post('password'));
+                        // $this->lauth->set_logged_in($data);
+                        redirect('auth/login');
                     } else {
                         set_flash_alert('danger', config_item('SQLError'));
                     }
